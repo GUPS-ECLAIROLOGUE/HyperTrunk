@@ -16,7 +16,7 @@ namespace HyperTrunk.Models
     {
         public static readonly List<LuminexGroup> All = new List<LuminexGroup>
         {
-            new LuminexGroup { Name = "Managment", VlanId = 1,  ColorHex = "#325197" },
+            new LuminexGroup { Name = "Manage (Untagged)", VlanId = 1,  ColorHex = "#325197" },
             new LuminexGroup { Name = "Group02", VlanId = 200,  ColorHex = "#E80000" },
             new LuminexGroup { Name = "Group03", VlanId = 300,  ColorHex = "#32CD32" },
             new LuminexGroup { Name = "Group04", VlanId = 400,  ColorHex = "#00E8E8" },

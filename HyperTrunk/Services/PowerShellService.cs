@@ -118,13 +118,13 @@ namespace HyperTrunk.Services
 
         public void CreerVSwitch(string nomCarte)
         {
-            string nomSwitch = "vSwitch_" + nomCarte.Replace(" ", "_");
+            string nomSwitch = "HyperTrunk_" + nomCarte.Replace(" ", "_");
             Executer($"New-VMSwitch -Name '{nomSwitch}' -NetAdapterName '{nomCarte}' -AllowManagementOS $true");
         }
 
         public void SupprimerVSwitch(string nomCarte)
         {
-            string nomSwitch = "vSwitch_" + nomCarte.Replace(" ", "_");
+            string nomSwitch = "HyperTrunk_" + nomCarte.Replace(" ", "_");
             Executer($"Remove-VMSwitch '{nomSwitch}' -Force");
         }
 
@@ -227,7 +227,15 @@ namespace HyperTrunk.Services
         public void CreerVlan(string nomSwitch, string nomVlan, int vlanId)
         {
             Executer($"Add-VMNetworkAdapter -ManagementOS -Name '{nomVlan}' -SwitchName '{nomSwitch}'");
-            Executer($"Set-VMNetworkAdapterVlan -ManagementOS -VMNetworkAdapterName '{nomVlan}' -Access -VlanId {vlanId}");
+
+            if (vlanId == 1)
+            {
+                Executer($"Set-VMNetworkAdapterVlan -ManagementOS -VMNetworkAdapterName '{nomVlan}' -Untagged");
+            }
+            else
+            {
+                Executer($"Set-VMNetworkAdapterVlan -ManagementOS -VMNetworkAdapterName '{nomVlan}' -Access -VlanId {vlanId}");
+            }
         }
 
         public void SupprimerVlan(string nomVlan)

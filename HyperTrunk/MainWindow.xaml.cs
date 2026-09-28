@@ -173,7 +173,7 @@ namespace HyperTrunk
 
             if (popup.ShowDialog() == true)
             {
-                string nomSwitch = "vSwitch_" + selected.Name.Replace(" ", "_");
+                string nomSwitch = "HyperTrunk_" + selected.Name.Replace(" ", "_");
 
                 // Création de l'adaptateur virtuel + assignation du VLAN ID
                 _ps.CreerVlan(nomSwitch, popup.VlanName, popup.VlanId);
