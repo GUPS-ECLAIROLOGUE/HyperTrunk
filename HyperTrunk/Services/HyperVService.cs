@@ -85,7 +85,7 @@ namespace HyperTrunk.Services
                 .Select(s => s!)
                 .ToList();
 
-            _logger.Log(LogLevel.Debug, $"Adaptateurs PnP présents (Status=OK) : {string.Join(" | ", presentDescriptions)}");
+            LogList("Adaptateurs PnP présents (Status=OK) :", presentDescriptions);
 
             var switchResults = await ExecuteAsync(
                 ps => ps.AddCommand("Get-VMSwitch"),
@@ -118,9 +118,18 @@ namespace HyperTrunk.Services
                 });
             }
 
-            _logger.Log(LogLevel.Debug, $"{result.Count} carte(s) réseau retenue(s) : {string.Join(", ", result.Select(a => a.Name))}");
+            LogList($"{result.Count} carte(s) réseau retenue(s) :", result.Select(a => a.Name));
 
             return result;
+        }
+
+        // Affiche chaque élément sur sa propre ligne de journal, plutôt qu'une seule
+        // ligne à rallonge - plus lisible dans la console et le fichier de log.
+        private void LogList(string header, IEnumerable<string> items)
+        {
+            _logger.Log(LogLevel.Debug, header);
+            foreach (string item in items)
+                _logger.Log(LogLevel.Debug, "   - " + item);
         }
 
         public Task CreateSwitchAsync(string adapterName, CancellationToken ct = default)
