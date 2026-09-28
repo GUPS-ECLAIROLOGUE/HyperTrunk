@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HyperTrunk.Logging;
 using HyperTrunk.Models;
+using ExecutionPolicy = Microsoft.PowerShell.ExecutionPolicy;
 using LogLevel = HyperTrunk.Logging.LogLevel;
 
 namespace HyperTrunk.Services
@@ -308,8 +309,18 @@ namespace HyperTrunk.Services
             if (_runspace is not null && _runspace.RunspaceStateInfo.State == RunspaceState.Opened)
                 return;
 
+            // Certains modules Windows (NetAdapter, NetTCPIP...) sont des modules "CDXML"
+            // dont le chargement est traité comme l'exécution d'un script : si la politique
+            // d'exécution PowerShell de la machine est restrictive (le cas par défaut sur
+            // beaucoup de PC), leur import échoue. L'ancien code contournait déjà ça en
+            // lançant powershell.exe avec "-ExecutionPolicy Bypass" ; on fait l'équivalent
+            // ici, mais uniquement pour cette session interne à l'application - la politique
+            // d'exécution globale de la machine n'est pas modifiée.
+            InitialSessionState iss = InitialSessionState.CreateDefault();
+            iss.ExecutionPolicy = ExecutionPolicy.Bypass;
+
             _runspace?.Dispose();
-            _runspace = RunspaceFactory.CreateRunspace(InitialSessionState.CreateDefault());
+            _runspace = RunspaceFactory.CreateRunspace(iss);
             _runspace.Open();
         }
 
