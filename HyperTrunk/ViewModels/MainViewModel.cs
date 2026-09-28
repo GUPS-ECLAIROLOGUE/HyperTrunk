@@ -124,11 +124,14 @@ namespace HyperTrunk.ViewModels
             await LoadVlansCoreAsyncSafe();
         }
 
-        private Task LoadAdaptersAsync() => RunBusyAsync("Chargement des cartes réseau...", LoadAdaptersCoreAsyncSafe);
+        // "internal" (plutôt que "private") pour que HyperTrunk.Tests puisse appeler
+        // directement ces méthodes et les attendre de façon déterministe, plutôt que
+        // de passer par ICommand.Execute (qui est "async void" et ne s'attend pas).
+        internal Task LoadAdaptersAsync() => RunBusyAsync("Chargement des cartes réseau...", LoadAdaptersCoreAsyncSafe);
 
-        private Task LoadVlansAsync() => RunBusyAsync("Chargement des VLANs...", LoadVlansCoreAsyncSafe);
+        internal Task LoadVlansAsync() => RunBusyAsync("Chargement des VLANs...", LoadVlansCoreAsyncSafe);
 
-        private Task CreateSwitchAsync() => RunBusyAsync("Création du vSwitch...", async () =>
+        internal Task CreateSwitchAsync() => RunBusyAsync("Création du vSwitch...", async () =>
         {
             if (SelectedAdapter is null) return;
             try
@@ -143,7 +146,7 @@ namespace HyperTrunk.ViewModels
             }
         });
 
-        private Task DeleteSwitchAsync() => RunBusyAsync("Suppression du vSwitch...", async () =>
+        internal Task DeleteSwitchAsync() => RunBusyAsync("Suppression du vSwitch...", async () =>
         {
             if (SelectedAdapter is null) return;
             try
@@ -158,7 +161,7 @@ namespace HyperTrunk.ViewModels
             }
         });
 
-        private Task DeleteVlanAsync() => RunBusyAsync("Suppression du VLAN...", async () =>
+        internal Task DeleteVlanAsync() => RunBusyAsync("Suppression du VLAN...", async () =>
         {
             if (SelectedVlan is null) return;
             try

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Specialized;
 using System.Windows;
+using System.Windows.Threading;
 using HyperTrunk.Models;
 using HyperTrunk.Services;
 using HyperTrunk.ViewModels;
@@ -31,8 +32,17 @@ namespace HyperTrunk.Views
 
         private void OnLogEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            if (lstConsole.Items.Count > 0)
-                lstConsole.ScrollIntoView(lstConsole.Items[^1]);
+            // Reporté en priorité Background : appeler ScrollIntoView de façon synchrone
+            // pendant l'événement CollectionChanged force une passe de mise en page
+            // immédiate qui peut interrompre l'ajout d'autres lignes arrivant juste après
+            // (plusieurs commandes Hyper-V peuvent journaliser coup sur coup), ce qui rend
+            // le générateur d'éléments du ListBox incohérent. En attendant que la file du
+            // dispatcher soit calme, tous les ajouts en attente sont d'abord appliqués.
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (lstConsole.Items.Count > 0)
+                    lstConsole.ScrollIntoView(lstConsole.Items[^1]);
+            }), DispatcherPriority.Background);
         }
 
         private async void OnRequestAddVlanDialog(object? sender, EventArgs e)

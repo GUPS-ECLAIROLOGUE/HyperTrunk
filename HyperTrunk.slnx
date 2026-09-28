@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="HyperTrunk/HyperTrunk.csproj" />
+  <Project Path="HyperTrunk.Tests/HyperTrunk.Tests.csproj" />
 </Solution>
