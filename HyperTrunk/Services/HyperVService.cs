@@ -118,7 +118,7 @@ namespace HyperTrunk.Services
                 });
             }
 
-            LogList($"{result.Count} carte(s) réseau retenue(s) :", result.Select(a => a.Name));
+            LogList($"{result.Count} carte(s) réseau retenue(s) :", result.Select(a => $"{a.Name} — {a.Description}"));
 
             return result;
         }
