@@ -1,14 +1,16 @@
 ﻿using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace HyperTrunk.Models
 {
     public class LuminexGroup
     {
-        public string Name { get; set; }      // Ex: "Group02"
-        public int VlanId { get; set; }        // Ex: 200
-        public string ColorHex { get; set; }   // Ex: "#C62828"
+        public string Name { get; set; } = string.Empty;      // Ex: "Group02"
+        public int VlanId { get; set; }                       // Ex: 200
+        public string ColorHex { get; set; } = "#444444";     // Ex: "#C62828"
 
-        // Texte affiché dans le ComboBox de la popup
+        // Texte affiché dans le ComboBox de la popup - calculé, pas stocké dans le JSON
+        [JsonIgnore]
         public string Display => $"{Name}  —  VLAN {VlanId}";
     }
 

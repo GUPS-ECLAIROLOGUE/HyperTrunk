@@ -35,4 +35,8 @@
     </Resource>
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.6.6" />
+  </ItemGroup>
+
 </Project>

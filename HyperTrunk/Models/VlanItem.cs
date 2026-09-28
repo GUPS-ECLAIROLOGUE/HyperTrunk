@@ -1,33 +1,13 @@
 ﻿namespace HyperTrunk.Models
 {
+    // DTO représentant un VLAN tel qu'il existe réellement dans Hyper-V.
+    // La couleur d'affichage (issue des groupes Luminex) est résolue côté ViewModel,
+    // pas ici : cette classe ne décrit que des faits Hyper-V.
     public class VlanItem
     {
-        // Nom de l'adaptateur virtuel (ex: "VLAN_Scène")
-        public string Name { get; set; }
-
-        // L'ID VLAN Hyper-V (ex: 200)
+        public string Name { get; set; } = string.Empty;
         public int VlanId { get; set; }
-
-        // Couleur hex Luminex (ex: "#C62828")
-        public string ColorHex { get; set; }
-
-        // Adresse IP (ex: "192.168.2.1") — vide si pas configurée
-        public string IpAddress { get; set; }
-
-        // Masque de sous-réseau (ex: "255.255.255.0") — vide si pas configuré
-        public string SubnetMask { get; set; }
-
-        // Texte affiché dans la liste de la fenêtre principale
-        public string Display
-        {
-            get
-            {
-                string ip = string.IsNullOrWhiteSpace(IpAddress)
-                    ? "No IP"
-                    : $"{IpAddress} / {SubnetMask}";
-
-                return $"{Name}  |  VLAN ID {VlanId}  |  {ip}";
-            }
-        }
+        public string IpAddress { get; set; } = string.Empty;
+        public string SubnetMask { get; set; } = string.Empty;
     }
 }

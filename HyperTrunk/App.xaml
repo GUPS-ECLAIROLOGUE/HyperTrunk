@@ -1,9 +1,11 @@
-﻿<Application x:Class="HyperTrunk.App"
+<Application x:Class="HyperTrunk.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:HyperTrunk"
-             StartupUri="MainWindow.xaml">
+             xmlns:conv="clr-namespace:HyperTrunk.Converters"
+             xmlns:ctrl="clr-namespace:System.Windows.Controls;assembly=PresentationFramework">
     <Application.Resources>
-         
+        <conv:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter"/>
+        <conv:NullOrEmptyToVisibilityConverter x:Key="NullOrEmptyToVisibilityConverter"/>
+        <ctrl:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     </Application.Resources>
 </Application>

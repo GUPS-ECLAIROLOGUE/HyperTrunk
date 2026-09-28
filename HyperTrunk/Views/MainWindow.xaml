@@ -1,9 +1,9 @@
-﻿<Window x:Class="HyperTrunk.MainWindow"
+<Window x:Class="HyperTrunk.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="HyperTrunk"
-        Icon="HyperTrunk_P.ico"
-        Height="800"
+        Icon="/HyperTrunk_P.ico"
+        Height="820"
         Width="800"
         WindowStartupLocation="CenterScreen">
 
@@ -15,6 +15,23 @@
             <RowDefinition Height="220"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
+
+        <!-- ===================== -->
+        <!-- INDICATEUR "EN COURS" -->
+        <!-- ===================== -->
+
+        <StackPanel Grid.Row="0"
+                    Orientation="Horizontal"
+                    Margin="0,0,0,10"
+                    Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+            <ProgressBar IsIndeterminate="True" Width="150" Height="16" Margin="0,0,10,0"/>
+            <TextBlock Text="{Binding BusyMessage}"
+                       VerticalAlignment="Center"
+                       FontStyle="Italic"
+                       Foreground="Gray"/>
+
+        </StackPanel>
 
         <!-- ===================== -->
         <!-- CARTES RÉSEAU         -->
@@ -41,7 +58,8 @@
                                Margin="0,0,0,10"/>
 
                     <ListBox Name="lstAdapters"
-                             SelectionChanged="lstAdapters_SelectionChanged"
+                             ItemsSource="{Binding Adapters}"
+                             SelectedItem="{Binding SelectedAdapter}"
                              Height="140">
 
                         <ListBox.ItemTemplate>
@@ -104,17 +122,17 @@
                             Margin="15,31,0,3">
 
                     <Button Content="Create vSwitch"
-                            Click="btnCreateSwitch_Click"
+                            Command="{Binding CreateSwitchCommand}"
                             Margin="0,0,0,4"
                             Height="40"/>
 
                     <Button Content="Remove vSwitch"
-                            Click="btnDeleteSwitch_Click"
-                            Margin="0,0,0,4" 
+                            Command="{Binding DeleteSwitchCommand}"
+                            Margin="0,0,0,4"
                             Height="40"/>
 
                     <Button Content="Refresh"
-                            Click="btnRefreshNIC_Click"
+                            Command="{Binding LoadAdaptersCommand}"
                             Height="40"/>
 
                 </StackPanel>
@@ -148,6 +166,8 @@
                                Margin="0,0,0,10"/>
 
                     <ListBox Name="lstVlans"
+                             ItemsSource="{Binding Vlans}"
+                             SelectedItem="{Binding SelectedVlan}"
                              Height="140">
 
                         <ListBox.ItemTemplate>
@@ -179,21 +199,21 @@
                             Margin="15,32,0,0">
 
                     <Button Content="Add VLAN"
-                            Click="btnAddVlan_Click"
+                            Command="{Binding OpenAddVlanCommand}"
                             Margin="0,0,0,4"
                             Height="40"/>
 
                     <!--   <Button Content="Edit VLAN"
-                            Click="btnEditVlan_Click"
+                            Command="{Binding OpenEditVlanCommand}"
                             Margin="0,0,0,4"/> -->
 
                     <Button Content="Remove VLAN"
-                            Click="btnDeleteVlan_Click"
+                            Command="{Binding DeleteVlanCommand}"
                             Margin="0,0,0,4"
                             Height="40"/>
 
                     <Button Content="Refresh"
-                            Click="btnRefreshVLAN_Click"
+                            Command="{Binding LoadVlansCommand}"
                             Height="40"/>
 
                 </StackPanel>
@@ -222,14 +242,50 @@
                            FontSize="16"
                            FontWeight="Bold"/>
 
-             <RichTextBox Name="txtConsole"
-             Grid.Row="1"
-             FontFamily="Consolas"
-             FontSize="13"
-             IsReadOnly="True"
-             VerticalScrollBarVisibility="Auto"
-             HorizontalScrollBarVisibility="Auto"/>
+                <ListBox Name="lstConsole"
+                         Grid.Row="1"
+                         ItemsSource="{Binding LogEntries}"
+                         BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         FontFamily="Consolas"
+                         FontSize="13">
 
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="Focusable" Value="False"/>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Timestamp, StringFormat='[HH:mm:ss] '}"
+                                           Foreground="Gray"/>
+                                <TextBlock Text="{Binding Message}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="Black"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCommand}" Value="True">
+                                                    <Setter Property="Foreground" Value="#007800"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Level}" Value="Warn">
+                                                    <Setter Property="Foreground" Value="DarkOrange"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Level}" Value="Error">
+                                                    <Setter Property="Foreground" Value="Red"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+
+                </ListBox>
 
             </Grid>
 
@@ -239,11 +295,10 @@
         <!-- VOILE ADMIN           -->
         <!-- ===================== -->
 
-        <Grid Name="voileAdmin"
-      Grid.RowSpan="4"
-      Background="#80000000"
-      Visibility="Collapsed"
-      Panel.ZIndex="99">
+        <Grid Grid.RowSpan="4"
+              Background="#80000000"
+              Visibility="{Binding IsAdmin, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+              Panel.ZIndex="99">
 
             <Border Background="White"
             CornerRadius="8"
@@ -279,11 +334,10 @@
         <!-- ===================== -->
         <!-- VOILE HYPER-V         -->
         <!-- ===================== -->
-        <Grid Name="voileHyperV"
-      Grid.RowSpan="4"
-      Background="#80000000"
-      Visibility="Collapsed"
-      Panel.ZIndex="99">
+        <Grid Grid.RowSpan="4"
+              Background="#80000000"
+              Visibility="{Binding IsHyperVAvailable, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+              Panel.ZIndex="99">
 
             <Border Background="White"
             CornerRadius="8"
