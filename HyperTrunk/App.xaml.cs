@@ -1,12 +1,8 @@
 ﻿using System.Windows;
 
-namespace VLANTrunkManager
+namespace HyperTrunk
 {
-    /// <summary>
-    /// Interaction logic for App.xaml
-    /// </summary>
     public partial class App : Application
     {
     }
-
 }
