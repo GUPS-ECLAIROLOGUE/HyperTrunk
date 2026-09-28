@@ -73,12 +73,19 @@ namespace HyperTrunk.Services
                 ps => ps.AddCommand("Get-PnpDevice").AddParameter("Class", "Net"),
                 ReadTimeout, ct).ConfigureAwait(false);
 
+            // Remarque : "FriendlyName" est un alias ajouté par Get-PnpDevice uniquement
+            // quand le module est chargé sous Windows PowerShell 5.1 "classique". Le moteur
+            // PowerShell hébergé par l'application (édition Core) ne l'expose pas toujours ;
+            // "Name" est la propriété CIM brute, elle est donc plus fiable ici et contient
+            // la même information (le nom convivial de l'appareil).
             var presentDescriptions = pnpResults
                 .Where(o => string.Equals(o.Properties["Status"]?.Value?.ToString(), "OK", StringComparison.OrdinalIgnoreCase))
-                .Select(o => o.Properties["FriendlyName"]?.Value?.ToString())
+                .Select(o => o.Properties["Name"]?.Value?.ToString())
                 .Where(s => !string.IsNullOrWhiteSpace(s))
                 .Select(s => s!)
                 .ToList();
+
+            _logger.Log(LogLevel.Debug, $"Adaptateurs PnP présents (Status=OK) : {string.Join(" | ", presentDescriptions)}");
 
             var switchResults = await ExecuteAsync(
                 ps => ps.AddCommand("Get-VMSwitch"),
@@ -110,6 +117,8 @@ namespace HyperTrunk.Services
                     HasSwitch = adaptersWithSwitch.Contains(nic.Description)
                 });
             }
+
+            _logger.Log(LogLevel.Debug, $"{result.Count} carte(s) réseau retenue(s) : {string.Join(", ", result.Select(a => a.Name))}");
 
             return result;
         }
