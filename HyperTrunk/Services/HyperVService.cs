@@ -272,17 +272,17 @@ namespace HyperTrunk.Services
                 WriteTimeout, ct);
         }
 
+        // Nombre de tentatives pour New-NetIPAddress face à la race condition "Dhcp Enabled"
+        // ci-dessous (1 essai initial + rattrapages).
+        private const int ConfigureIpMaxAttempts = 5;
+
         public async Task ConfigureIpAsync(string vlanName, string ipAddress, string subnetMask, CancellationToken ct = default)
         {
             string alias = $"vEthernet ({vlanName})";
             string normalizedIp = IpUtils.NormalizeIp(ipAddress);
             int prefixLength = IpUtils.MaskToPrefixLength(subnetMask);
 
-            await ExecuteAsync(ps => ps.AddCommand("Set-NetIPInterface")
-                    .AddParameter("InterfaceAlias", alias)
-                    .AddParameter("AddressFamily", "IPv4")
-                    .AddParameter("Dhcp", "Disabled"),
-                WriteTimeout, ct).ConfigureAwait(false);
+            await DisableDhcpAsync(alias, ct).ConfigureAwait(false);
 
             // Remove-NetIPAddress lève une erreur *terminante* (CimJobException "aucun objet
             // trouvé") quand il n'y a rien à supprimer - le cas normal sur un VLAN tout juste
@@ -304,12 +304,41 @@ namespace HyperTrunk.Services
             {
             }
 
-            await ExecuteAsync(ps => ps.AddCommand("New-NetIPAddress")
+            // Juste après la création de l'adaptateur vEthernet, Windows peut mettre quelques
+            // instants à finir d'initialiser son interface IP : le "Dhcp Disabled" qu'on vient
+            // de poser plus haut n'est alors pas encore effectif côté "ActiveStore", et
+            // New-NetIPAddress échoue avec "Inconsistent parameters PolicyStore PersistentStore
+            // and Dhcp Enabled" bien que Set-NetIPInterface ait réussi sans erreur. On retente
+            // en redésactivant le DHCP entre chaque essai.
+            for (int attempt = 1; attempt <= ConfigureIpMaxAttempts; attempt++)
+            {
+                try
+                {
+                    await ExecuteAsync(ps => ps.AddCommand("New-NetIPAddress")
+                            .AddParameter("InterfaceAlias", alias)
+                            .AddParameter("AddressFamily", "IPv4")
+                            .AddParameter("IPAddress", normalizedIp)
+                            .AddParameter("PrefixLength", prefixLength),
+                        WriteTimeout, ct).ConfigureAwait(false);
+                    return;
+                }
+                catch (HyperVOperationException ex) when (
+                    attempt < ConfigureIpMaxAttempts &&
+                    ex.Message.Contains("Dhcp Enabled", StringComparison.OrdinalIgnoreCase))
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false);
+                    await DisableDhcpAsync(alias, ct).ConfigureAwait(false);
+                }
+            }
+        }
+
+        private Task DisableDhcpAsync(string alias, CancellationToken ct)
+        {
+            return ExecuteAsync(ps => ps.AddCommand("Set-NetIPInterface")
                     .AddParameter("InterfaceAlias", alias)
                     .AddParameter("AddressFamily", "IPv4")
-                    .AddParameter("IPAddress", normalizedIp)
-                    .AddParameter("PrefixLength", prefixLength),
-                WriteTimeout, ct).ConfigureAwait(false);
+                    .AddParameter("Dhcp", "Disabled"),
+                WriteTimeout, ct);
         }
 
         // =============================================
