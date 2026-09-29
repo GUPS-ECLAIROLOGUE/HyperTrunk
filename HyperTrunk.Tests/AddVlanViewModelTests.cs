@@ -51,7 +51,7 @@ namespace HyperTrunk.Tests
 
             vm.CreateCommand.Execute(null);
 
-            Assert.Equal("Si tu entres une IP, tu dois aussi choisir un masque.", vm.ErrorMessage);
+            Assert.Equal("Choisis un masque.", vm.ErrorMessage);
         }
 
         [Fact]

@@ -113,7 +113,7 @@ namespace HyperTrunk.ViewModels
 
             if (!string.IsNullOrWhiteSpace(IpAddress) && SelectedMask is null)
             {
-                ErrorMessage = "Si tu entres une IP, tu dois aussi choisir un masque.";
+                ErrorMessage = "Choisis un masque.";
                 return;
             }
 

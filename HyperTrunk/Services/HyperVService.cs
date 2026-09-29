@@ -24,6 +24,12 @@ namespace HyperTrunk.Services
         private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(20);
         private static readonly TimeSpan WriteTimeout = TimeSpan.FromSeconds(45);
 
+        // Lier (ou délier) un vSwitch à une carte physique réelle peut prendre nettement
+        // plus longtemps qu'une opération sur un adaptateur virtuel - Windows doit
+        // réinstaller le pilote du commutateur virtuel étendu sur la carte, ce qui est
+        // connu pour être lent sur certains chipsets (notamment les cartes "Killer").
+        private static readonly TimeSpan SwitchBindTimeout = TimeSpan.FromSeconds(120);
+
         private readonly ILogger _logger;
         private readonly SemaphoreSlim _gate = new(1, 1);
         private Runspace? _runspace;
@@ -45,7 +51,7 @@ namespace HyperTrunk.Services
             {
                 throw new HyperVOperationException(
                     "Impossible de charger les modules PowerShell Hyper-V/réseau. " +
-                    "Vérifie que la fonctionnalité Hyper-V est bien installée sur cette machine.",
+                    "Vérifiez que Hyper-V est bien installée sur cet ordinateur",
                     ex.PowerShellErrors, ex.IsTimeout, ex);
             }
         }
@@ -118,7 +124,7 @@ namespace HyperTrunk.Services
                 });
             }
 
-            LogList($"{result.Count} carte(s) réseau retenue(s) :", result.Select(a => $"{a.Name} — {a.Description}"));
+            LogList($"{result.Count} cartes réseau retenues :", result.Select(a => $"{a.Name} — {a.Description}"));
 
             return result;
         }
@@ -139,7 +145,7 @@ namespace HyperTrunk.Services
                     .AddParameter("Name", switchName)
                     .AddParameter("NetAdapterName", adapterName)
                     .AddParameter("AllowManagementOS", true),
-                WriteTimeout, ct);
+                SwitchBindTimeout, ct);
         }
 
         public Task DeleteSwitchAsync(string adapterName, CancellationToken ct = default)
@@ -148,7 +154,7 @@ namespace HyperTrunk.Services
             return ExecuteAsync(ps => ps.AddCommand("Remove-VMSwitch")
                     .AddParameter("Name", switchName)
                     .AddParameter("Force", true),
-                WriteTimeout, ct);
+                SwitchBindTimeout, ct);
         }
 
         public async Task<IReadOnlyList<VlanItem>> GetVlansAsync(CancellationToken ct = default)
@@ -162,7 +168,7 @@ namespace HyperTrunk.Services
             var ipResults = await ExecuteAsync(
                 ps => ps.AddCommand("Get-NetIPAddress")
                     .AddParameter("AddressFamily", AddressFamily.InterNetwork)
-                    .AddParameter("ErrorAction", "SilentlyContinue"),
+                    .AddParameter("ErrorAction", "Ignore"),
                 ReadTimeout, ct).ConfigureAwait(false);
 
             var manualIpByAlias = ipResults
@@ -174,12 +180,45 @@ namespace HyperTrunk.Services
 
             foreach (var vlanObj in vlanResults)
             {
-                var parentAdapter = vlanObj.Properties["ParentAdapter"]?.Value as PSObject;
+                // "as PSObject" échoue toujours ici : .Value renvoie l'objet .NET brut
+                // (Microsoft.HyperV.PowerShell.VMInternalNetworkAdapter), qui n'hérite PAS
+                // de PSObject - contrairement à vlanObj lui-même, auto-enveloppé parce qu'il
+                // sort directement du pipeline PowerShell. Il faut l'envelopper explicitement
+                // avec AsPSObject pour pouvoir lire ses propriétés via .Properties[...].
+                object? parentAdapterRaw = vlanObj.Properties["ParentAdapter"]?.Value;
+                PSObject? parentAdapter = parentAdapterRaw is null ? null : PSObject.AsPSObject(parentAdapterRaw);
                 string? name = parentAdapter?.Properties["Name"]?.Value?.ToString();
-                object? vlanIdRaw = vlanObj.Properties["AccessVlanId"]?.Value;
+                string? switchName = parentAdapter?.Properties["SwitchName"]?.Value?.ToString();
+                string? operationMode = vlanObj.Properties["OperationMode"]?.Value?.ToString();
 
-                if (string.IsNullOrWhiteSpace(name) || vlanIdRaw is null) continue;
-                if (!int.TryParse(vlanIdRaw.ToString(), out int vlanId) || vlanId == 0) continue;
+                if (string.IsNullOrWhiteSpace(name)) continue;
+
+                // Ne garder que les adaptateurs sur un switch géré par HyperTrunk (pas le
+                // "Default Switch" intégré à Windows), et exclure le vNIC de management que
+                // Hyper-V crée automatiquement pour le switch lui-même (son Name == le nom du
+                // switch) - ce n'est pas un VLAN créé via "Add VLAN", il est Untagged par
+                // défaut comme n'importe quel VLAN 1 et serait sinon confondu avec un vrai VLAN.
+                if (string.IsNullOrWhiteSpace(switchName) ||
+                    !switchName.StartsWith(VSwitchNaming.Prefix, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(name, switchName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                int vlanId;
+                if (string.Equals(operationMode, "Untagged", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Le VLAN 1 (management) est créé en mode "Untagged" par CreateVlanAsync,
+                    // pas "Access" - AccessVlanId y vaut toujours 0 dans ce mode, ce qui le
+                    // ferait disparaître de la liste si on se basait dessus comme pour les
+                    // autres VLANs.
+                    vlanId = 1;
+                }
+                else
+                {
+                    object? vlanIdRaw = vlanObj.Properties["AccessVlanId"]?.Value;
+                    if (vlanIdRaw is null || !int.TryParse(vlanIdRaw.ToString(), out vlanId) || vlanId == 0) continue;
+                }
 
                 string ip = string.Empty;
                 string mask = string.Empty;
@@ -245,12 +284,25 @@ namespace HyperTrunk.Services
                     .AddParameter("Dhcp", "Disabled"),
                 WriteTimeout, ct).ConfigureAwait(false);
 
-            await ExecuteAsync(ps => ps.AddCommand("Remove-NetIPAddress")
-                    .AddParameter("InterfaceAlias", alias)
-                    .AddParameter("AddressFamily", "IPv4")
-                    .AddParameter("Confirm", false)
-                    .AddParameter("ErrorAction", "SilentlyContinue"),
-                WriteTimeout, ct).ConfigureAwait(false);
+            // Remove-NetIPAddress lève une erreur *terminante* (CimJobException "aucun objet
+            // trouvé") quand il n'y a rien à supprimer - le cas normal sur un VLAN tout juste
+            // créé. -ErrorAction ne peut rien y faire (ça ne s'applique qu'aux erreurs non-
+            // terminantes). Et vérifier avant coup ne marche pas non plus : Get-NetIPAddress
+            // filtré par -InterfaceAlias lève la même erreur terminante sur zéro résultat.
+            // Donc on tente la suppression et on avale l'échec : "rien à supprimer" n'est pas
+            // une vraie erreur ici, contrairement à un problème Hyper-V plus sérieux qui, lui,
+            // ferait de toute façon échouer l'étape New-NetIPAddress juste après.
+            try
+            {
+                await ExecuteAsync(ps => ps.AddCommand("Remove-NetIPAddress")
+                        .AddParameter("InterfaceAlias", alias)
+                        .AddParameter("AddressFamily", "IPv4")
+                        .AddParameter("Confirm", false),
+                    WriteTimeout, ct).ConfigureAwait(false);
+            }
+            catch (HyperVOperationException)
+            {
+            }
 
             await ExecuteAsync(ps => ps.AddCommand("New-NetIPAddress")
                     .AddParameter("InterfaceAlias", alias)
