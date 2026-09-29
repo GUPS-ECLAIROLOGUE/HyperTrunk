@@ -272,30 +272,43 @@ namespace HyperTrunk.Services
                 WriteTimeout, ct);
         }
 
-        // Nombre de tentatives pour New-NetIPAddress face à la race condition "Dhcp Enabled"
-        // ci-dessous (1 essai initial + rattrapages).
-        private const int ConfigureIpMaxAttempts = 5;
-
         public async Task ConfigureIpAsync(string vlanName, string ipAddress, string subnetMask, CancellationToken ct = default)
         {
             string alias = $"vEthernet ({vlanName})";
             string normalizedIp = IpUtils.NormalizeIp(ipAddress);
             int prefixLength = IpUtils.MaskToPrefixLength(subnetMask);
 
-            await DisableDhcpAsync(alias, ct).ConfigureAwait(false);
+            (string interfaceGuid, int interfaceIndex) = await GetAdapterIdentityAsync(alias, ct).ConfigureAwait(false);
+
+            // L'ancienne version de l'app (avant la refonte) désactivait le DHCP en écrivant
+            // directement la clé de registre EnableDHCP, plutôt qu'en appelant
+            // Set-NetIPInterface -Dhcp Disabled - et ça marchait de façon fiable. On a
+            // confirmé pourquoi : Set-NetIPInterface passe par le provider CIM/CDXML, dont
+            // l'état "ActiveStore" met parfois plusieurs secondes à se synchroniser juste
+            // après la création de l'adaptateur vEthernet, ce qui faisait échouer
+            // New-NetIPAddress avec "Inconsistent parameters PolicyStore PersistentStore and
+            // Dhcp Enabled" alors même que Set-NetIPInterface avait rapporté un succès.
+            // Écrire directement la clé de registre applique le changement immédiatement,
+            // sans passer par cette couche intermédiaire.
+            string registryPath = $@"HKLM:\SYSTEM\CurrentControlSet\services\Tcpip\Parameters\Interfaces\{interfaceGuid}";
+            await ExecuteAsync(ps => ps.AddCommand("Set-ItemProperty")
+                    .AddParameter("Path", registryPath)
+                    .AddParameter("Name", "EnableDHCP")
+                    .AddParameter("Value", 0),
+                WriteTimeout, ct).ConfigureAwait(false);
 
             // Remove-NetIPAddress lève une erreur *terminante* (CimJobException "aucun objet
             // trouvé") quand il n'y a rien à supprimer - le cas normal sur un VLAN tout juste
             // créé. -ErrorAction ne peut rien y faire (ça ne s'applique qu'aux erreurs non-
             // terminantes). Et vérifier avant coup ne marche pas non plus : Get-NetIPAddress
-            // filtré par -InterfaceAlias lève la même erreur terminante sur zéro résultat.
+            // filtré par -InterfaceIndex lève la même erreur terminante sur zéro résultat.
             // Donc on tente la suppression et on avale l'échec : "rien à supprimer" n'est pas
             // une vraie erreur ici, contrairement à un problème Hyper-V plus sérieux qui, lui,
             // ferait de toute façon échouer l'étape New-NetIPAddress juste après.
             try
             {
                 await ExecuteAsync(ps => ps.AddCommand("Remove-NetIPAddress")
-                        .AddParameter("InterfaceAlias", alias)
+                        .AddParameter("InterfaceIndex", interfaceIndex)
                         .AddParameter("AddressFamily", "IPv4")
                         .AddParameter("Confirm", false),
                     WriteTimeout, ct).ConfigureAwait(false);
@@ -304,41 +317,32 @@ namespace HyperTrunk.Services
             {
             }
 
-            // Juste après la création de l'adaptateur vEthernet, Windows peut mettre quelques
-            // instants à finir d'initialiser son interface IP : le "Dhcp Disabled" qu'on vient
-            // de poser plus haut n'est alors pas encore effectif côté "ActiveStore", et
-            // New-NetIPAddress échoue avec "Inconsistent parameters PolicyStore PersistentStore
-            // and Dhcp Enabled" bien que Set-NetIPInterface ait réussi sans erreur. On retente
-            // en redésactivant le DHCP entre chaque essai.
-            for (int attempt = 1; attempt <= ConfigureIpMaxAttempts; attempt++)
-            {
-                try
-                {
-                    await ExecuteAsync(ps => ps.AddCommand("New-NetIPAddress")
-                            .AddParameter("InterfaceAlias", alias)
-                            .AddParameter("AddressFamily", "IPv4")
-                            .AddParameter("IPAddress", normalizedIp)
-                            .AddParameter("PrefixLength", prefixLength),
-                        WriteTimeout, ct).ConfigureAwait(false);
-                    return;
-                }
-                catch (HyperVOperationException ex) when (
-                    attempt < ConfigureIpMaxAttempts &&
-                    ex.Message.Contains("Dhcp Enabled", StringComparison.OrdinalIgnoreCase))
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false);
-                    await DisableDhcpAsync(alias, ct).ConfigureAwait(false);
-                }
-            }
+            await ExecuteAsync(ps => ps.AddCommand("New-NetIPAddress")
+                    .AddParameter("InterfaceIndex", interfaceIndex)
+                    .AddParameter("AddressFamily", "IPv4")
+                    .AddParameter("IPAddress", normalizedIp)
+                    .AddParameter("PrefixLength", prefixLength),
+                WriteTimeout, ct).ConfigureAwait(false);
         }
 
-        private Task DisableDhcpAsync(string alias, CancellationToken ct)
+        private async Task<(string InterfaceGuid, int InterfaceIndex)> GetAdapterIdentityAsync(string alias, CancellationToken ct)
         {
-            return ExecuteAsync(ps => ps.AddCommand("Set-NetIPInterface")
-                    .AddParameter("InterfaceAlias", alias)
-                    .AddParameter("AddressFamily", "IPv4")
-                    .AddParameter("Dhcp", "Disabled"),
-                WriteTimeout, ct);
+            List<PSObject> results = await ExecuteAsync(ps => ps.AddCommand("Get-NetAdapter")
+                    .AddParameter("Name", alias),
+                ReadTimeout, ct).ConfigureAwait(false);
+
+            PSObject adapter = results.FirstOrDefault()
+                ?? throw new HyperVOperationException($"Adaptateur réseau introuvable : {alias}.");
+
+            string? guid = adapter.Properties["InterfaceGuid"]?.Value?.ToString();
+            object? indexRaw = adapter.Properties["InterfaceIndex"]?.Value;
+
+            if (string.IsNullOrWhiteSpace(guid) || indexRaw is null || !int.TryParse(indexRaw.ToString(), out int index))
+            {
+                throw new HyperVOperationException($"Impossible de lire le GUID/index de l'adaptateur : {alias}.");
+            }
+
+            return (guid, index);
         }
 
         // =============================================
