@@ -148,45 +148,61 @@ namespace HyperTrunk.ViewModels
         internal Task CreateSwitchAsync() => RunBusyAsync("Création du vSwitch...", async () =>
         {
             if (SelectedAdapter is null) return;
+
+            // Le rafraîchissement (LoadAdapters/LoadVlans) est volontairement hors du
+            // try/catch de l'action principale et utilise les variantes "Safe" : juste
+            // après la création/suppression d'un vSwitch, Hyper-V peut mettre un instant à
+            // stabiliser son état WMI, et une requête de rafraîchissement immédiate peut
+            // échouer ("objet introuvable") alors que l'action elle-même a bien réussi. Sans
+            // cette séparation, cet échec de rafraîchissement était signalé comme un échec de
+            // l'action principale, alors que le vSwitch avait bel et bien été créé/supprimé.
             try
             {
                 await _hyperV.CreateSwitchAsync(SelectedAdapter.Name);
-                await LoadAdaptersCoreAsync();
-                await LoadVlansCoreAsync();
             }
             catch (HyperVOperationException ex)
             {
                 HandleError("Impossible de créer le vSwitch.", ex);
             }
+
+            await LoadAdaptersCoreAsyncSafe();
+            await LoadVlansCoreAsyncSafe();
         });
 
         internal Task DeleteSwitchAsync() => RunBusyAsync("Suppression du vSwitch...", async () =>
         {
             if (SelectedAdapter is null) return;
+
+            // Voir le commentaire équivalent dans CreateSwitchAsync ci-dessus.
             try
             {
                 await _hyperV.DeleteSwitchAsync(SelectedAdapter.Name);
-                await LoadAdaptersCoreAsync();
-                await LoadVlansCoreAsync();
             }
             catch (HyperVOperationException ex)
             {
                 HandleError("Impossible de supprimer le vSwitch.", ex);
             }
+
+            await LoadAdaptersCoreAsyncSafe();
+            await LoadVlansCoreAsyncSafe();
         });
 
         internal Task DeleteVlanAsync() => RunBusyAsync("Suppression du VLAN...", async () =>
         {
             if (SelectedVlan is null) return;
+
+            // Voir le commentaire dans DeleteSwitchAsync : le rafraîchissement est séparé de
+            // l'action principale pour ne pas lui attribuer à tort un échec de chargement.
             try
             {
                 await _hyperV.DeleteVlanAsync(SelectedVlan.Name);
-                await LoadVlansCoreAsync();
             }
             catch (HyperVOperationException ex)
             {
                 HandleError("Impossible de supprimer le VLAN.", ex);
             }
+
+            await LoadVlansCoreAsyncSafe();
         });
 
         private void OpenAddVlan()
@@ -223,6 +239,9 @@ namespace HyperTrunk.ViewModels
                 string? switchName = SwitchNameForSelectedAdapter;
                 if (switchName is null) return;
 
+                // Voir le commentaire dans DeleteSwitchAsync : le rafraîchissement est séparé
+                // de l'action principale pour ne pas lui attribuer à tort un échec de
+                // chargement.
                 try
                 {
                     await _hyperV.CreateVlanAsync(switchName, vlanName, vlanId);
@@ -232,13 +251,13 @@ namespace HyperTrunk.ViewModels
                     // erreur PowerShell trompeuse ("rien à supprimer") sans raison.
                     if (!string.IsNullOrWhiteSpace(ipAddress))
                         await _hyperV.ConfigureIpAsync(vlanName, ipAddress, subnetMask, removeExisting: false);
-
-                    await LoadVlansCoreAsync();
                 }
                 catch (HyperVOperationException ex)
                 {
                     HandleError("Impossible d'ajouter le VLAN.", ex);
                 }
+
+                await LoadVlansCoreAsyncSafe();
             });
         }
 
@@ -250,13 +269,13 @@ namespace HyperTrunk.ViewModels
                 {
                     if (!string.IsNullOrWhiteSpace(ipAddress))
                         await _hyperV.ConfigureIpAsync(vlanName, ipAddress, subnetMask);
-
-                    await LoadVlansCoreAsync();
                 }
                 catch (HyperVOperationException ex)
                 {
                     HandleError("Impossible de mettre à jour le VLAN.", ex);
                 }
+
+                await LoadVlansCoreAsyncSafe();
             });
         }
 
