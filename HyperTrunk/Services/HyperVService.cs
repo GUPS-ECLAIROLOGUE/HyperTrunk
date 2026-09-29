@@ -171,8 +171,16 @@ namespace HyperTrunk.Services
                     .AddParameter("ErrorAction", "Ignore"),
                 ReadTimeout, ct).ConfigureAwait(false);
 
+            // Get-NetIPAddress renvoie PrefixOrigin comme le code CIM numérique brut ("1" pour
+            // Manual, "2" WellKnown, "3" Dhcp, ...) quand on le lit via .Properties[...].Value
+            // depuis l'API .NET hébergée - PowerShell ne traduit "Manual" en texte que via son
+            // formateur de console interactive, jamais atteint ici. Comparer à la chaîne
+            // "Manual" ne matchait donc jamais, et c'est ce qui faisait disparaître les IP du
+            // tableau des VLAN même une fois correctement configurées (confirmé via un log de
+            // diagnostic montrant prefixOrigin=[1] pour une IP qu'on savait manuelle).
+            const string ManualPrefixOriginCode = "1";
             var manualIpByAlias = ipResults
-                .Where(o => string.Equals(o.Properties["PrefixOrigin"]?.Value?.ToString(), "Manual", StringComparison.OrdinalIgnoreCase))
+                .Where(o => string.Equals(o.Properties["PrefixOrigin"]?.Value?.ToString(), ManualPrefixOriginCode, StringComparison.Ordinal))
                 .GroupBy(o => o.Properties["InterfaceAlias"]?.Value?.ToString() ?? string.Empty)
                 .ToDictionary(g => g.Key, g => g.First());
 
