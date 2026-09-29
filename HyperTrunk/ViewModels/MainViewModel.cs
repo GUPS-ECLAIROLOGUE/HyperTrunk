@@ -74,6 +74,7 @@ namespace HyperTrunk.ViewModels
         public ICommand OpenAddVlanCommand { get; }
         public ICommand OpenEditVlanCommand { get; }
         public ICommand DeleteVlanCommand { get; }
+        public ICommand CopyConsoleCommand { get; }
 
         public event EventHandler? RequestAddVlanDialog;
         public event EventHandler<VlanItemViewModel>? RequestEditVlanDialog;
@@ -93,6 +94,19 @@ namespace HyperTrunk.ViewModels
             OpenAddVlanCommand = new RelayCommand(OpenAddVlan, () => !IsBusy);
             OpenEditVlanCommand = new RelayCommand(OpenEditVlan, () => !IsBusy && SelectedVlan is not null);
             DeleteVlanCommand = new AsyncRelayCommand(DeleteVlanAsync, () => !IsBusy && SelectedVlan is not null);
+            CopyConsoleCommand = new RelayCommand(CopyConsoleToClipboard, () => LogEntries.Count > 0);
+        }
+
+        // Les TextBlock du panneau console ne permettent pas la sélection de texte native de
+        // WPF - ce bouton copie tout le contenu affiché dans le presse-papiers en une fois,
+        // pour pouvoir le recoller ailleurs (ex: le transmettre pour du support).
+        private void CopyConsoleToClipboard()
+        {
+            string text = string.Join(Environment.NewLine,
+                LogEntries.Select(e => $"[{e.Timestamp:HH:mm:ss}] {e.Message}"));
+
+            if (text.Length > 0)
+                System.Windows.Clipboard.SetText(text);
         }
 
         public async Task InitializeAsync()

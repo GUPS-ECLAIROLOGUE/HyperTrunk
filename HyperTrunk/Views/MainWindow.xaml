@@ -238,9 +238,18 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Text="Console"
-                           FontSize="16"
-                           FontWeight="Bold"/>
+                <DockPanel Grid.Row="0">
+                    <TextBlock Text="Console"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               DockPanel.Dock="Left"/>
+
+                    <Button Content="Copier"
+                            DockPanel.Dock="Right"
+                            HorizontalAlignment="Right"
+                            Padding="10,2"
+                            Command="{Binding CopyConsoleCommand}"/>
+                </DockPanel>
 
                 <ListBox Name="lstConsole"
                          Grid.Row="1"

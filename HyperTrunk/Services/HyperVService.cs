@@ -374,8 +374,14 @@ namespace HyperTrunk.Services
                     ps.Runspace = _runspace;
                     configure(ps);
 
-                    string commandText = string.Join(" | ", ps.Commands.Commands.Select(c => c.CommandText));
-                    _logger.Log(LogLevel.Debug, commandText, isCommand: true);
+                    // Ligne vide avant chaque commande : sépare visuellement le bloc
+                    // "commande + sa réponse" du précédent dans la console.
+                    _logger.Log(LogLevel.Debug, string.Empty);
+
+                    // Affiche la commande complète avec ses paramètres, comme si elle avait
+                    // été tapée à la main dans un terminal (avant : seulement le nom de la
+                    // cmdlet, sans les paramètres, via Command.CommandText).
+                    _logger.Log(LogLevel.Debug, FormatCommandLine(ps), isCommand: true);
 
                     return InvokeWithTimeout(ps, timeout);
                 }, ct).ConfigureAwait(false);
@@ -416,7 +422,86 @@ namespace HyperTrunk.Services
                     errors);
             }
 
+            LogOutput(output);
+
             return output.ToList();
+        }
+
+        // Affiche la réponse de PowerShell dans la console, comme le ferait le terminal
+        // interactif quand une commande produit un résultat (rien si la commande n'en
+        // produit pas - Set-ItemProperty, Add-VMNetworkAdapter, etc. n'affichent
+        // normalement rien non plus dans un vrai terminal).
+        private void LogOutput(ICollection<PSObject> output)
+        {
+            if (output.Count == 0) return;
+
+            using PowerShell formatter = PowerShell.Create();
+            formatter.Runspace = _runspace;
+            formatter.AddCommand("Out-String").AddParameter("Width", 200);
+
+            var input = new PSDataCollection<PSObject>();
+            foreach (PSObject o in output) input.Add(o);
+            input.Complete();
+
+            string formatted = string.Concat(formatter.Invoke<string>(input));
+
+            // Out-String sépare chaque objet par une ligne vide dans les vues "liste" (ex :
+            // Format-List, utilisée automatiquement quand il y a trop de propriétés pour un
+            // tableau) - on la garde, ça sépare visuellement chaque carte réseau/VLAN dans la
+            // console. On retire seulement les lignes vides parasites en tête et en fin de
+            // sortie, qui n'apportent rien.
+            List<string> lines = formatted.Replace("\r\n", "\n").Split('\n').ToList();
+            while (lines.Count > 0 && lines[0].Trim().Length == 0) lines.RemoveAt(0);
+            while (lines.Count > 0 && lines[^1].Trim().Length == 0) lines.RemoveAt(lines.Count - 1);
+
+            foreach (string line in lines)
+            {
+                _logger.Log(LogLevel.Debug, line);
+            }
+        }
+
+        // Reconstruit la ligne de commande telle qu'on la taperait dans un terminal
+        // PowerShell (cmdlet + paramètres), à partir des Command/CommandParameter internes
+        // à l'API .NET - qui elle ne conserve pas de texte "source" puisque les paramètres
+        // sont ajoutés via AddParameter(nom, valeur), pas par du texte.
+        private static string FormatCommandLine(PowerShell ps)
+        {
+            return string.Join(" | ", ps.Commands.Commands.Select(FormatCommand));
+        }
+
+        private static string FormatCommand(Command command)
+        {
+            var parts = new List<string> { command.CommandText };
+
+            foreach (CommandParameter p in command.Parameters)
+            {
+                if (p.Name is null)
+                {
+                    parts.Add(FormatParameterValue(p.Value));
+                    continue;
+                }
+
+                if (p.Value is bool boolValue)
+                {
+                    // Paramètre "switch" : -Nom tel quel si vrai, -Nom:$false si explicitement
+                    // désactivé (ex: Remove-NetIPAddress -Confirm false).
+                    parts.Add(boolValue ? $"-{p.Name}" : $"-{p.Name}:$false");
+                }
+                else
+                {
+                    parts.Add($"-{p.Name}");
+                    parts.Add(FormatParameterValue(p.Value));
+                }
+            }
+
+            return string.Join(" ", parts);
+        }
+
+        private static string FormatParameterValue(object? value)
+        {
+            if (value is null) return "$null";
+            string text = value.ToString() ?? string.Empty;
+            return text.Length == 0 || text.Contains(' ') ? $"\"{text}\"" : text;
         }
 
         private void EnsureRunspaceOpen()
