@@ -68,7 +68,7 @@ namespace HyperTrunk.Tests.Fakes
             return Task.CompletedTask;
         }
 
-        public Task ConfigureIpAsync(string vlanName, string ipAddress, string subnetMask, CancellationToken ct = default)
+        public Task ConfigureIpAsync(string vlanName, string ipAddress, string subnetMask, bool removeExisting = true, CancellationToken ct = default)
         {
             ConfigureIpCallCount++;
             ThrowIfConfigured();

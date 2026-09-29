@@ -213,8 +213,11 @@ namespace HyperTrunk.ViewModels
                 {
                     await _hyperV.CreateVlanAsync(switchName, vlanName, vlanId);
 
+                    // removeExisting: false - l'adaptateur vient d'être créé, il n'a jamais
+                    // eu d'IP ; tenter d'en supprimer une n'aurait fait que journaliser une
+                    // erreur PowerShell trompeuse ("rien à supprimer") sans raison.
                     if (!string.IsNullOrWhiteSpace(ipAddress))
-                        await _hyperV.ConfigureIpAsync(vlanName, ipAddress, subnetMask);
+                        await _hyperV.ConfigureIpAsync(vlanName, ipAddress, subnetMask, removeExisting: false);
 
                     await LoadVlansCoreAsync();
                 }

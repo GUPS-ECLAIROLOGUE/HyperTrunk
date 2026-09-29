@@ -280,7 +280,7 @@ namespace HyperTrunk.Services
                 WriteTimeout, ct);
         }
 
-        public async Task ConfigureIpAsync(string vlanName, string ipAddress, string subnetMask, CancellationToken ct = default)
+        public async Task ConfigureIpAsync(string vlanName, string ipAddress, string subnetMask, bool removeExisting = true, CancellationToken ct = default)
         {
             string alias = $"vEthernet ({vlanName})";
             string normalizedIp = IpUtils.NormalizeIp(ipAddress);
@@ -306,23 +306,27 @@ namespace HyperTrunk.Services
                 WriteTimeout, ct).ConfigureAwait(false);
 
             // Remove-NetIPAddress lève une erreur *terminante* (CimJobException "aucun objet
-            // trouvé") quand il n'y a rien à supprimer - le cas normal sur un VLAN tout juste
-            // créé. -ErrorAction ne peut rien y faire (ça ne s'applique qu'aux erreurs non-
-            // terminantes). Et vérifier avant coup ne marche pas non plus : Get-NetIPAddress
-            // filtré par -InterfaceIndex lève la même erreur terminante sur zéro résultat.
-            // Donc on tente la suppression et on avale l'échec : "rien à supprimer" n'est pas
-            // une vraie erreur ici, contrairement à un problème Hyper-V plus sérieux qui, lui,
-            // ferait de toute façon échouer l'étape New-NetIPAddress juste après.
-            try
+            // trouvé") quand il n'y a rien à supprimer - le cas systématique sur un VLAN tout
+            // juste créé (adaptateur neuf, jamais d'IP dessus). -ErrorAction ne peut rien y
+            // faire (ça ne s'applique qu'aux erreurs non-terminantes), et le try/catch
+            // ci-dessous absorbe bien l'exception côté C#, mais le flux d'erreur PowerShell
+            // est journalisé en rouge dans la console *avant* d'être attrapé - un message
+            // trompeur à chaque création alors que tout se passe normalement. On ne tente donc
+            // cette suppression que lors d'une édition (removeExisting = true), où
+            // l'adaptateur peut réellement avoir une IP existante à remplacer.
+            if (removeExisting)
             {
-                await ExecuteAsync(ps => ps.AddCommand("Remove-NetIPAddress")
-                        .AddParameter("InterfaceIndex", interfaceIndex)
-                        .AddParameter("AddressFamily", "IPv4")
-                        .AddParameter("Confirm", false),
-                    WriteTimeout, ct).ConfigureAwait(false);
-            }
-            catch (HyperVOperationException)
-            {
+                try
+                {
+                    await ExecuteAsync(ps => ps.AddCommand("Remove-NetIPAddress")
+                            .AddParameter("InterfaceIndex", interfaceIndex)
+                            .AddParameter("AddressFamily", "IPv4")
+                            .AddParameter("Confirm", false),
+                        WriteTimeout, ct).ConfigureAwait(false);
+                }
+                catch (HyperVOperationException)
+                {
+                }
             }
 
             await ExecuteAsync(ps => ps.AddCommand("New-NetIPAddress")

@@ -26,6 +26,9 @@ namespace HyperTrunk.Services
 
         Task DeleteVlanAsync(string vlanName, CancellationToken ct = default);
 
-        Task ConfigureIpAsync(string vlanName, string ipAddress, string subnetMask, CancellationToken ct = default);
+        // removeExisting : tente d'abord de supprimer une IP existante sur l'adaptateur avant
+        // d'assigner la nouvelle. Utile pour éditer un VLAN déjà configuré, inutile (et
+        // trompeur dans les logs) pour un VLAN tout juste créé, qui n'a jamais d'IP dessus.
+        Task ConfigureIpAsync(string vlanName, string ipAddress, string subnetMask, bool removeExisting = true, CancellationToken ct = default);
     }
 }
