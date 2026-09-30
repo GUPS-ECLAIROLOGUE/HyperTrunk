@@ -8,6 +8,9 @@ It is built around **Luminex GigaCore** networks (common in live events and AV i
 
 Everything HyperTrunk does relies on standard Hyper-V PowerShell commands (`New-VMSwitch`, `Add-VMNetworkAdapter`, `Set-VMNetworkAdapterVlan`…). The app just makes them quick and safe to use, and shows every command it runs.
 
+> [!NOTE]
+> **About this project:** I am not a developer. About 90% of the work on HyperTrunk (code, architecture, bug fixes and this documentation) was done by **Claude**, the AI assistant made by Anthropic, through Claude Code. My part was the idea, the requirements, and testing on real hardware.
+
 ## Features
 
 - Lists the physical Ethernet adapters and shows which ones already have a vSwitch
