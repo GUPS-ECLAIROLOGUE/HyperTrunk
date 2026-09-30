@@ -48,7 +48,7 @@ namespace HyperTrunk.Services
 
                 if (groups is null || groups.Count == 0)
                 {
-                    _logger.Log(LogLevel.Warn, $"Le fichier {ConfigFileName} est vide ou invalide, utilisation des groupes Luminex par défaut.");
+                    _logger.Log(LogLevel.Warn, $"{ConfigFileName} is empty or invalid, using default Luminex groups.");
                     _cached = LuminexGroups.All;
                 }
                 else
@@ -58,7 +58,7 @@ namespace HyperTrunk.Services
             }
             catch (Exception ex)
             {
-                _logger.Log(LogLevel.Warn, $"Impossible de lire {ConfigFileName} ({ex.Message}), utilisation des groupes Luminex par défaut.");
+                _logger.Log(LogLevel.Warn, $"Unable to read {ConfigFileName} ({ex.Message}), using default Luminex groups.");
                 _cached = LuminexGroups.All;
             }
 

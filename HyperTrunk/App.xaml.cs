@@ -30,10 +30,10 @@ namespace HyperTrunk
 
         private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
-            _logger?.Log(LogLevel.Error, "Erreur non gérée : " + e.Exception);
+            _logger?.Log(LogLevel.Error, "Unhandled error: " + e.Exception);
 
             MessageBox.Show(
-                "Une erreur inattendue est survenue et a été enregistrée dans le journal." +
+                "An unexpected error occurred and has been written to the log." +
                 Environment.NewLine + Environment.NewLine + e.Exception.Message,
                 "HyperTrunk",
                 MessageBoxButton.OK,

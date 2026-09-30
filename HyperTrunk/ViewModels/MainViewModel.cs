@@ -114,11 +114,11 @@ namespace HyperTrunk.ViewModels
             IsAdmin = AdminCheck.IsRunningAsAdministrator();
             if (!IsAdmin)
             {
-                _logger.Log(LogLevel.Warn, "L'application n'est pas lancée avec les droits administrateur.");
+                _logger.Log(LogLevel.Warn, "The application is not running with administrator rights.");
                 return;
             }
 
-            await RunBusyAsync("Vérification de Hyper-V...", async () =>
+            await RunBusyAsync("Checking Hyper-V...", async () =>
             {
                 try
                 {
@@ -127,8 +127,13 @@ namespace HyperTrunk.ViewModels
                 }
                 catch (HyperVOperationException ex)
                 {
+                    // Pas de HandleError/popup ici : le panneau "Hyper-V n'est pas activé sur
+                    // cet ordinateur" (lié à IsHyperVAvailable) informe déjà l'utilisateur de
+                    // façon claire, un MessageBox par-dessus serait redondant.
                     IsHyperVAvailable = false;
-                    HandleError("Impossible d'initialiser Hyper-V.", ex);
+                    _logger.Log(LogLevel.Error, "Unable to initialize Hyper-V. " + ex.Message);
+                    foreach (var detail in ex.PowerShellErrors)
+                        _logger.Log(LogLevel.Error, detail);
                 }
             });
 
@@ -141,11 +146,11 @@ namespace HyperTrunk.ViewModels
         // "internal" (plutôt que "private") pour que HyperTrunk.Tests puisse appeler
         // directement ces méthodes et les attendre de façon déterministe, plutôt que
         // de passer par ICommand.Execute (qui est "async void" et ne s'attend pas).
-        internal Task LoadAdaptersAsync() => RunBusyAsync("Chargement des cartes réseau...", LoadAdaptersCoreAsyncSafe);
+        internal Task LoadAdaptersAsync() => RunBusyAsync("Loading network adapters...", LoadAdaptersCoreAsyncSafe);
 
-        internal Task LoadVlansAsync() => RunBusyAsync("Chargement des VLANs...", LoadVlansCoreAsyncSafe);
+        internal Task LoadVlansAsync() => RunBusyAsync("Loading VLANs...", LoadVlansCoreAsyncSafe);
 
-        internal Task CreateSwitchAsync() => RunBusyAsync("Création du vSwitch...", async () =>
+        internal Task CreateSwitchAsync() => RunBusyAsync("Creating vSwitch...", async () =>
         {
             if (SelectedAdapter is null) return;
 
@@ -162,14 +167,14 @@ namespace HyperTrunk.ViewModels
             }
             catch (HyperVOperationException ex)
             {
-                HandleError("Impossible de créer le vSwitch.", ex);
+                HandleError("Unable to create the vSwitch.", ex);
             }
 
             await LoadAdaptersCoreAsyncSafe();
             await LoadVlansCoreAsyncSafe();
         });
 
-        internal Task DeleteSwitchAsync() => RunBusyAsync("Suppression du vSwitch...", async () =>
+        internal Task DeleteSwitchAsync() => RunBusyAsync("Removing vSwitch...", async () =>
         {
             if (SelectedAdapter is null) return;
 
@@ -180,14 +185,14 @@ namespace HyperTrunk.ViewModels
             }
             catch (HyperVOperationException ex)
             {
-                HandleError("Impossible de supprimer le vSwitch.", ex);
+                HandleError("Unable to remove the vSwitch.", ex);
             }
 
             await LoadAdaptersCoreAsyncSafe();
             await LoadVlansCoreAsyncSafe();
         });
 
-        internal Task DeleteVlanAsync() => RunBusyAsync("Suppression du VLAN...", async () =>
+        internal Task DeleteVlanAsync() => RunBusyAsync("Removing VLAN...", async () =>
         {
             if (SelectedVlan is null) return;
 
@@ -199,7 +204,7 @@ namespace HyperTrunk.ViewModels
             }
             catch (HyperVOperationException ex)
             {
-                HandleError("Impossible de supprimer le VLAN.", ex);
+                HandleError("Unable to remove the VLAN.", ex);
             }
 
             await LoadVlansCoreAsyncSafe();
@@ -209,13 +214,13 @@ namespace HyperTrunk.ViewModels
         {
             if (SelectedAdapter is null)
             {
-                RequestShowError?.Invoke(this, "Sélectionne une carte réseau avec un vSwitch actif.");
+                RequestShowError?.Invoke(this, "Please select a network adapter with an active vSwitch.");
                 return;
             }
 
             if (!SelectedAdapter.HasSwitch)
             {
-                RequestShowError?.Invoke(this, "Cette carte n'a pas de vSwitch actif. Crée-le d'abord.");
+                RequestShowError?.Invoke(this, "This adapter has no active vSwitch. Please create it first.");
                 return;
             }
 
@@ -234,7 +239,7 @@ namespace HyperTrunk.ViewModels
 
         public Task CreateVlanFromDialogAsync(string vlanName, int vlanId, string ipAddress, string subnetMask)
         {
-            return RunBusyAsync("Ajout du VLAN...", async () =>
+            return RunBusyAsync("Adding VLAN...", async () =>
             {
                 string? switchName = SwitchNameForSelectedAdapter;
                 if (switchName is null) return;
@@ -254,7 +259,7 @@ namespace HyperTrunk.ViewModels
                 }
                 catch (HyperVOperationException ex)
                 {
-                    HandleError("Impossible d'ajouter le VLAN.", ex);
+                    HandleError("Unable to add the VLAN.", ex);
                 }
 
                 await LoadVlansCoreAsyncSafe();
@@ -263,7 +268,7 @@ namespace HyperTrunk.ViewModels
 
         public Task EditVlanFromDialogAsync(string vlanName, string ipAddress, string subnetMask)
         {
-            return RunBusyAsync("Mise à jour du VLAN...", async () =>
+            return RunBusyAsync("Updating VLAN...", async () =>
             {
                 try
                 {
@@ -272,7 +277,7 @@ namespace HyperTrunk.ViewModels
                 }
                 catch (HyperVOperationException ex)
                 {
-                    HandleError("Impossible de mettre à jour le VLAN.", ex);
+                    HandleError("Unable to update the VLAN.", ex);
                 }
 
                 await LoadVlansCoreAsyncSafe();
@@ -294,7 +299,7 @@ namespace HyperTrunk.ViewModels
             }
             catch (HyperVOperationException ex)
             {
-                HandleError("Impossible de charger les cartes réseau.", ex);
+                HandleError("Unable to load network adapters.", ex);
             }
         }
 
@@ -319,7 +324,7 @@ namespace HyperTrunk.ViewModels
             }
             catch (HyperVOperationException ex)
             {
-                HandleError("Impossible de charger les VLANs.", ex);
+                HandleError("Unable to load VLANs.", ex);
             }
         }
 

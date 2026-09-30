@@ -27,7 +27,7 @@ namespace HyperTrunk.Tests
             vm.CreateCommand.Execute(null);
 
             Assert.False(closeRaised);
-            Assert.Equal("Le nom du VLAN est obligatoire.", vm.ErrorMessage);
+            Assert.Equal("VLAN name is required.", vm.ErrorMessage);
         }
 
         [Fact]
@@ -38,7 +38,7 @@ namespace HyperTrunk.Tests
 
             vm.CreateCommand.Execute(null);
 
-            Assert.Equal("Sélectionne un groupe Luminex.", vm.ErrorMessage);
+            Assert.Equal("Please select a Luminex group.", vm.ErrorMessage);
         }
 
         [Fact]
@@ -51,7 +51,7 @@ namespace HyperTrunk.Tests
 
             vm.CreateCommand.Execute(null);
 
-            Assert.Equal("Choisis un masque.", vm.ErrorMessage);
+            Assert.Equal("Please select a subnet mask.", vm.ErrorMessage);
         }
 
         [Fact]

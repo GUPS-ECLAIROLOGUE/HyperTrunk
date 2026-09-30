@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Specialized;
+using System.Diagnostics;
+using System.Reflection;
 using System.Windows;
+using System.Windows.Navigation;
 using System.Windows.Threading;
 using HyperTrunk.Models;
 using HyperTrunk.Services;
@@ -20,6 +23,11 @@ namespace HyperTrunk.Views
             _viewModel = viewModel;
             _groupsProvider = groupsProvider;
             DataContext = _viewModel;
+
+            var version = Assembly.GetExecutingAssembly()
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                .InformationalVersion;
+            Title = string.IsNullOrEmpty(version) ? "HyperTrunk" : $"HyperTrunk v{version}";
 
             _viewModel.RequestAddVlanDialog += OnRequestAddVlanDialog;
             _viewModel.RequestEditVlanDialog += OnRequestEditVlanDialog;
@@ -74,6 +82,27 @@ namespace HyperTrunk.Views
         private void OnRequestShowError(object? sender, string message)
         {
             MessageBox.Show(this, message, "HyperTrunk", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
+        {
+            Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+            e.Handled = true;
+        }
+
+        // Ouvre le panneau "Activer ou désactiver des fonctionnalités Windows", où
+        // l'utilisateur peut cocher Hyper-V.
+        private void OpenWindowsFeatures_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo("optionalfeatures.exe") { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Unable to open Windows Features." + Environment.NewLine + ex.Message,
+                    "HyperTrunk", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
     }
 }

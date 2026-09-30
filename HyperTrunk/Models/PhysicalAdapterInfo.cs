@@ -7,7 +7,7 @@ namespace HyperTrunk.Models
         public bool HasSwitch { get; set; }
 
         public string Display => HasSwitch
-            ? $"{Name}  |  {Description}  |  vSwitch actif ✔"
-            : $"{Name}  |  {Description}  |  pas de vSwitch ✘";
+            ? $"{Name}  |  {Description}  |  vSwitch active ✔"
+            : $"{Name}  |  {Description}  |  no vSwitch ✘";
     }
 }

@@ -50,8 +50,8 @@ namespace HyperTrunk.Services
             catch (HyperVOperationException ex)
             {
                 throw new HyperVOperationException(
-                    "Impossible de charger les modules PowerShell Hyper-V/réseau. " +
-                    "Vérifiez que Hyper-V est bien installée sur cet ordinateur",
+                    "Unable to load the Hyper-V/networking PowerShell modules. " +
+                    "Make sure Hyper-V is installed on this computer.",
                     ex.PowerShellErrors, ex.IsTimeout, ex);
             }
         }
@@ -75,23 +75,9 @@ namespace HyperTrunk.Services
 
         public async Task<IReadOnlyList<PhysicalAdapterInfo>> GetPhysicalAdaptersAsync(CancellationToken ct = default)
         {
-            var pnpResults = await ExecuteAsync(
-                ps => ps.AddCommand("Get-PnpDevice").AddParameter("Class", "Net"),
+            var adapterResults = await ExecuteAsync(
+                ps => ps.AddCommand("Get-NetAdapter"),
                 ReadTimeout, ct).ConfigureAwait(false);
-
-            // Remarque : "FriendlyName" est un alias ajouté par Get-PnpDevice uniquement
-            // quand le module est chargé sous Windows PowerShell 5.1 "classique". Le moteur
-            // PowerShell hébergé par l'application (édition Core) ne l'expose pas toujours ;
-            // "Name" est la propriété CIM brute, elle est donc plus fiable ici et contient
-            // la même information (le nom convivial de l'appareil).
-            var presentDescriptions = pnpResults
-                .Where(o => string.Equals(o.Properties["Status"]?.Value?.ToString(), "OK", StringComparison.OrdinalIgnoreCase))
-                .Select(o => o.Properties["Name"]?.Value?.ToString())
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Select(s => s!)
-                .ToList();
-
-            LogList("Adaptateurs PnP présents (Status=OK) :", presentDescriptions);
 
             var switchResults = await ExecuteAsync(
                 ps => ps.AddCommand("Get-VMSwitch"),
@@ -105,26 +91,30 @@ namespace HyperTrunk.Services
 
             var result = new List<PhysicalAdapterInfo>();
 
-            foreach (var nic in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+            foreach (var adapter in adapterResults)
             {
-                if (nic.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Ethernet)
+                // Propriétés déclarées par le pilote, indépendantes du nom et de la langue :
+                // HardwareInterface écarte vEthernet, VPN, miniports, débogueur noyau... et
+                // NdisPhysicalMedium = 14 (802.3) écarte Wi-Fi, Bluetooth, bouclage, WWAN.
+                bool isHardware = string.Equals(adapter.Properties["HardwareInterface"]?.Value?.ToString(), "True", StringComparison.OrdinalIgnoreCase);
+                bool isEthernet = adapter.Properties["NdisPhysicalMedium"]?.Value?.ToString() == "14";
+                if (!isHardware || !isEthernet)
                     continue;
 
-                if (!presentDescriptions.Any(p => p.Contains(nic.Description)))
-                    continue;
-
-                if (AdapterNameFilter.IsExcluded(nic.Name))
+                string? name = adapter.Properties["Name"]?.Value?.ToString();
+                string? description = adapter.Properties["InterfaceDescription"]?.Value?.ToString();
+                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(description))
                     continue;
 
                 result.Add(new PhysicalAdapterInfo
                 {
-                    Name = nic.Name,
-                    Description = nic.Description,
-                    HasSwitch = adaptersWithSwitch.Contains(nic.Description)
+                    Name = name,
+                    Description = description,
+                    HasSwitch = adaptersWithSwitch.Contains(description)
                 });
             }
 
-            LogList($"{result.Count} cartes réseau retenues :", result.Select(a => $"{a.Name} — {a.Description}"));
+            LogList($"{result.Count} network adapter(s) found:", result.Select(a => $"{a.Name} — {a.Description}"));
 
             return result;
         }
@@ -344,14 +334,14 @@ namespace HyperTrunk.Services
                 ReadTimeout, ct).ConfigureAwait(false);
 
             PSObject adapter = results.FirstOrDefault()
-                ?? throw new HyperVOperationException($"Adaptateur réseau introuvable : {alias}.");
+                ?? throw new HyperVOperationException($"Network adapter not found: {alias}.");
 
             string? guid = adapter.Properties["InterfaceGuid"]?.Value?.ToString();
             object? indexRaw = adapter.Properties["InterfaceIndex"]?.Value;
 
             if (string.IsNullOrWhiteSpace(guid) || indexRaw is null || !int.TryParse(indexRaw.ToString(), out int index))
             {
-                throw new HyperVOperationException($"Impossible de lire le GUID/index de l'adaptateur : {alias}.");
+                throw new HyperVOperationException($"Unable to read the adapter GUID/index: {alias}.");
             }
 
             return (guid, index);
@@ -402,11 +392,32 @@ namespace HyperTrunk.Services
             {
                 ps.Stop();
                 throw new HyperVOperationException(
-                    $"L'opération Hyper-V a dépassé le délai maximum ({timeout.TotalSeconds:0}s).",
+                    $"The Hyper-V operation timed out ({timeout.TotalSeconds:0}s).",
                     isTimeout: true);
             }
 
-            ps.EndInvoke(asyncResult);
+            try
+            {
+                ps.EndInvoke(asyncResult);
+            }
+            catch (Exception ex) when (ex is not HyperVOperationException)
+            {
+                // Certaines erreurs (ex: Import-Module -ErrorAction Stop sur un module
+                // absent) sont converties par PowerShell en exception directement levée
+                // par EndInvoke (ActionPreferenceStopException), plutôt que remontées via
+                // ps.Streams.Error/ps.HadErrors ci-dessous. Sans ce bloc, ce genre d'erreur
+                // n'est jamais transformé en HyperVOperationException et remonte telle
+                // quelle jusqu'à l'appelant, qui ne s'y attend pas.
+                var errors = ps.Streams.Error
+                    .Select(e => e.Exception?.Message ?? e.ToString())
+                    .ToList();
+
+                foreach (string err in errors)
+                    _logger.Log(LogLevel.Error, err);
+
+                throw new HyperVOperationException(
+                    errors.FirstOrDefault() ?? ex.Message, errors, isTimeout: false, ex);
+            }
 
             if (ps.HadErrors)
             {
@@ -418,7 +429,7 @@ namespace HyperTrunk.Services
                     _logger.Log(LogLevel.Error, err);
 
                 throw new HyperVOperationException(
-                    errors.FirstOrDefault() ?? "Une commande Hyper-V a échoué.",
+                    errors.FirstOrDefault() ?? "A Hyper-V command failed.",
                     errors);
             }
 
@@ -533,7 +544,7 @@ namespace HyperTrunk.Services
             }
             catch (Exception ex)
             {
-                _logger.Log(LogLevel.Warn, "Erreur lors de la fermeture de la session PowerShell : " + ex.Message);
+                _logger.Log(LogLevel.Warn, "Error while closing the PowerShell session: " + ex.Message);
             }
 
             _gate.Dispose();

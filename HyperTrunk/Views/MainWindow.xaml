@@ -10,34 +10,17 @@
     <Grid Margin="20">
 
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="220"/>
             <RowDefinition Height="220"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="30"/>
         </Grid.RowDefinitions>
-
-        <!-- ===================== -->
-        <!-- INDICATEUR "EN COURS" -->
-        <!-- ===================== -->
-
-        <StackPanel Grid.Row="0"
-                    Orientation="Horizontal"
-                    Margin="0,0,0,10"
-                    Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
-
-            <ProgressBar IsIndeterminate="True" Width="150" Height="16" Margin="0,0,10,0"/>
-            <TextBlock Text="{Binding BusyMessage}"
-                       VerticalAlignment="Center"
-                       FontStyle="Italic"
-                       Foreground="Gray"/>
-
-        </StackPanel>
 
         <!-- ===================== -->
         <!-- CARTES RÉSEAU         -->
         <!-- ===================== -->
 
-        <Border Grid.Row="1"
+        <Border Grid.Row="0"
                 BorderBrush="Gray"
                 BorderThickness="1"
                 CornerRadius="4"
@@ -74,11 +57,15 @@
 
                                 <Setter Property="Margin"            Value="0,0,0,4"/>
                                 <Setter Property="FocusVisualStyle"  Value="{x:Null}"/>
+                                <Setter Property="BorderBrush"       Value="Transparent"/>
+                                <Setter Property="BorderThickness"   Value="2"/>
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
                                             <Border Name="bd"
                             Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
                             Padding="2">
                                                 <ContentPresenter/>
                                             </Border>
@@ -94,13 +81,18 @@
                                         <Setter Property="Foreground" Value="Black"/>
                                     </DataTrigger>
 
-                                    <!-- SÉLECTION NORMALE : bleu clair -->
+                                    <!-- SÉLECTION : bordure bleue nette, quelle que soit la
+                                         couleur de fond (avec ou sans vSwitch) - avant, seule
+                                         une nuance de fond changeait, difficile à distinguer
+                                         notamment entre "vSwitch" et "vSwitch + sélectionné"
+                                         (deux verts très proches). -->
                                     <Trigger Property="IsSelected" Value="True">
                                         <Setter Property="Background" Value="LightBlue"/>
                                         <Setter Property="Foreground" Value="Black"/>
+                                        <Setter Property="BorderBrush" Value="#0060C0"/>
                                     </Trigger>
 
-                                    <!-- SÉLECTION + VSWITCH : vert -->
+                                    <!-- SÉLECTION + VSWITCH : fond vert, bordure bleue -->
                                     <MultiDataTrigger>
                                         <MultiDataTrigger.Conditions>
                                             <Condition Binding="{Binding HasSwitch}" Value="True"/>
@@ -108,6 +100,7 @@
                                         </MultiDataTrigger.Conditions>
                                         <Setter Property="Background" Value="LightGreen"/>
                                         <Setter Property="Foreground" Value="Black"/>
+                                        <Setter Property="BorderBrush" Value="#0060C0"/>
                                     </MultiDataTrigger>
 
                                 </Style.Triggers>
@@ -145,7 +138,7 @@
         <!-- VLANs                 -->
         <!-- ===================== -->
 
-        <Border Grid.Row="2"
+        <Border Grid.Row="1"
                 BorderBrush="Gray"
                 BorderThickness="1"
                 CornerRadius="4"
@@ -226,11 +219,12 @@
         <!-- CONSOLE               -->
         <!-- ===================== -->
 
-        <Border Grid.Row="3"
+        <Border Grid.Row="2"
                 BorderBrush="Gray"
                 BorderThickness="1"
                 CornerRadius="4"
-                Padding="10">
+                Padding="10"
+                Margin="0,0,0,10">
 
             <Grid>
                 <Grid.RowDefinitions>
@@ -244,7 +238,7 @@
                                FontWeight="Bold"
                                DockPanel.Dock="Left"/>
 
-                    <Button Content="Copier"
+                    <Button Content="Copy"
                             DockPanel.Dock="Right"
                             HorizontalAlignment="Right"
                             Padding="10,2"
@@ -301,6 +295,35 @@
         </Border>
 
         <!-- ===================== -->
+        <!-- INDICATEUR "EN COURS" -->
+        <!-- ===================== -->
+
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+            <ProgressBar IsIndeterminate="True" Width="150" Height="16" Margin="0,0,10,0"/>
+            <TextBlock Text="{Binding BusyMessage}"
+                       VerticalAlignment="Center"
+                       FontStyle="Italic"
+                       Foreground="Gray"/>
+
+        </StackPanel>
+
+        <TextBlock Grid.Row="3"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Center"
+                   Foreground="Gray"
+                   FontSize="12">
+            <Hyperlink NavigateUri="https://www.gups.fr"
+                       RequestNavigate="Hyperlink_RequestNavigate"
+                       Foreground="Gray">
+                www.gups.fr
+            </Hyperlink>
+        </TextBlock>
+
+        <!-- ===================== -->
         <!-- VOILE ADMIN           -->
         <!-- ===================== -->
 
@@ -322,14 +345,14 @@
                        HorizontalAlignment="Center"
                        Margin="0,0,0,10"/>
 
-                    <TextBlock Text="Droits administrateur requis !"
+                    <TextBlock Text="Administrator rights required!"
                        FontSize="18"
                        FontWeight="Bold"
                        Foreground="Red"
                        HorizontalAlignment="Center"
                        Margin="0,0,0,8"/>
 
-                    <TextBlock Text="Relancez HyperTrunk avec clic droit → Exécuter en tant qu'administrateur."
+                    <TextBlock Text="Restart HyperTrunk with right-click → Run as administrator."
                        FontSize="13"
                        Foreground="Gray"
                        HorizontalAlignment="Center"/>
@@ -362,17 +385,25 @@
                        Foreground="Red"
                        Margin="0,0,0,10"/>
 
-                    <TextBlock Text="Hyper-V n'est pas activé sur cet ordinateur !"
+                    <TextBlock Text="Hyper-V is not enabled on this computer!"
                        FontSize="18"
                        FontWeight="Bold"
                        Foreground="Red"
                        HorizontalAlignment="Center"
                        Margin="0,0,0,8"/>
 
-                    <TextBlock Text="Activez Hyper-V dans les fonctionnalités Windows puis redémarrez."
+                    <TextBlock Text="Enable Hyper-V in Windows Features, then restart."
                        FontSize="13"
                        Foreground="Gray"
                        HorizontalAlignment="Center"/>
+
+                    <TextBlock FontSize="13"
+                       HorizontalAlignment="Center"
+                       Margin="0,12,0,0">
+                        <Hyperlink Click="OpenWindowsFeatures_Click">
+                            Open Windows Features
+                        </Hyperlink>
+                    </TextBlock>
 
                 </StackPanel>
 

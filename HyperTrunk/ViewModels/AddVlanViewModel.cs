@@ -101,19 +101,19 @@ namespace HyperTrunk.ViewModels
 
             if (string.IsNullOrWhiteSpace(VlanName))
             {
-                ErrorMessage = "Le nom du VLAN est obligatoire.";
+                ErrorMessage = "VLAN name is required.";
                 return;
             }
 
             if (SelectedGroup is null)
             {
-                ErrorMessage = "Sélectionne un groupe Luminex.";
+                ErrorMessage = "Please select a Luminex group.";
                 return;
             }
 
             if (!string.IsNullOrWhiteSpace(IpAddress) && SelectedMask is null)
             {
-                ErrorMessage = "Choisis un masque.";
+                ErrorMessage = "Please select a subnet mask.";
                 return;
             }
 

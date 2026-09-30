@@ -25,7 +25,7 @@
 
         <!-- NOM DU VLAN -->
 
-        <TextBlock Text="Nom du VLAN"
+        <TextBlock Text="VLAN name"
                    Grid.Row="0"
                    VerticalAlignment="Center"/>
 
@@ -39,7 +39,7 @@
 
         <!-- GROUPE LUMINEX (couleur + VLAN ID auto) -->
 
-        <TextBlock Text="Groupe Luminex"
+        <TextBlock Text="Luminex group"
                    Grid.Row="1"
                    VerticalAlignment="Center"/>
 
@@ -81,7 +81,7 @@
 
         <!-- ADRESSE IP -->
 
-        <TextBlock Text="Adresse IP"
+        <TextBlock Text="IP address"
                    Grid.Row="3"
                    VerticalAlignment="Center"/>
 
@@ -94,7 +94,7 @@
 
         <!-- MASQUE -->
 
-        <TextBlock Text="Masque"
+        <TextBlock Text="Subnet mask"
                    Grid.Row="4"
                    VerticalAlignment="Center"/>
 
@@ -117,7 +117,7 @@
 
         <!-- BOUTON CRÉER -->
 
-        <Button Content="Créer le VLAN"
+        <Button Content="Create VLAN"
                 Command="{Binding CreateCommand}"
                 Height="36"
                 Grid.Row="5"
