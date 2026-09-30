@@ -2,6 +2,10 @@
 
 **Connect a Windows PC to several VLANs at once through a single Ethernet cable, using Hyper-V.**
 
+## [⬇️ Download the latest version](../../releases/latest)
+
+*Download the `.zip` file from the page above. Don't use the green **Code** button: it gives you the source code, not the app.*
+
 HyperTrunk is a small Windows desktop app that turns a physical network adapter into a VLAN trunk. For each VLAN you need, it creates a virtual network adapter tagged with the right VLAN ID. Windows then sees one network card per VLAN, each with its own IP address.
 
 It is built around **Luminex GigaCore** networks (common in live events and AV installations): VLANs are picked from the Luminex groups, with the same names and colors as on the switches. The group list can be customized, so it also works with any other VLAN-capable switch.
@@ -31,7 +35,7 @@ Everything HyperTrunk does relies on standard Hyper-V PowerShell commands (`New-
 
 ## Installation
 
-1. Download the latest `HyperTrunk-<version>-win-x64.zip` from the [Releases](../../releases) page.
+1. Download the latest `HyperTrunk-<version>-win-x64.zip` from the [latest release](../../releases/latest) page.
 2. Extract it to a folder of your choice.
 3. Run `HyperTrunk.exe` and accept the administrator prompt.
 
