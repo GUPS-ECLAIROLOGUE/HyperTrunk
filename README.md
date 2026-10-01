@@ -1,3 +1,5 @@
+![HyperTrunk](docs/hypertrunk-banner.svg)
+
 # HyperTrunk
 
 **Connect a Windows PC to several VLANs at once through a single Ethernet cable, using Hyper-V.**
