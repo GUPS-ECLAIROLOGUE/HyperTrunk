@@ -6,7 +6,7 @@
 
 ## [⬇️ Download the latest version](../../releases/latest)
 
-*Download the `.zip` file from the page above. Don't use the green **Code** button: it gives you the source code, not the app.*
+*Download the `.zip` file from the page above.*
 
 HyperTrunk is a small Windows desktop app that turns a physical network adapter into a VLAN trunk. For each VLAN you need, it creates a virtual network adapter tagged with the right VLAN ID. Windows then sees one network card per VLAN, each with its own IP address.
 
