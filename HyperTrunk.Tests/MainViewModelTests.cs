@@ -114,6 +114,42 @@ namespace HyperTrunk.Tests
         }
 
         [Fact]
+        public async Task CreateSwitchCommand_HyperTrunkSwitchExistsOnAnotherAdapter_IsDisabled()
+        {
+            var hyperV = new FakeHyperVService
+            {
+                Adapters = new List<PhysicalAdapterInfo>
+                {
+                    new() { Name = "Eth1", HasSwitch = true, HasHyperTrunkSwitch = true },
+                    new() { Name = "Eth2" }
+                }
+            };
+            var vm = CreateViewModel(hyperV);
+            await vm.LoadAdaptersAsync();
+            vm.SelectedAdapter = vm.Adapters.Single(a => a.Name == "Eth2");
+
+            Assert.False(vm.CreateSwitchCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public async Task CreateSwitchCommand_OnlyNonHyperTrunkSwitchExists_IsEnabled()
+        {
+            var hyperV = new FakeHyperVService
+            {
+                Adapters = new List<PhysicalAdapterInfo>
+                {
+                    new() { Name = "Eth1", HasSwitch = true }, // switch External créé hors HyperTrunk
+                    new() { Name = "Eth2" }
+                }
+            };
+            var vm = CreateViewModel(hyperV);
+            await vm.LoadAdaptersAsync();
+            vm.SelectedAdapter = vm.Adapters.Single(a => a.Name == "Eth2");
+
+            Assert.True(vm.CreateSwitchCommand.CanExecute(null));
+        }
+
+        [Fact]
         public async Task DeleteVlanAsync_Success_CallsServiceAndReloads()
         {
             var hyperV = new FakeHyperVService

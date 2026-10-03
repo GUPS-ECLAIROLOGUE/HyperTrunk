@@ -20,7 +20,7 @@ Everything HyperTrunk does relies on standard Hyper-V PowerShell commands (`New-
 ## Features
 
 - Lists the physical Ethernet adapters and shows which ones already have a vSwitch
-- Creates or removes a Hyper-V external vSwitch on an adapter in one click
+- Creates or removes a Hyper-V external vSwitch on an adapter in one click (one HyperTrunk vSwitch at a time)
 - Adds a VLAN by picking a Luminex group: the VLAN ID and color are filled in automatically
 - Optionally assigns a static IPv4 address and subnet mask to each VLAN
 - Group 1 ("Manage") is created untagged, the other groups are tagged (access mode)
@@ -47,6 +47,7 @@ No installation is needed. The .NET runtime is included in the zip.
 
 1. **Select an adapter** in *Network Adapters*, then click **Create vSwitch**.
    The adapter's network connection drops for a few seconds while Hyper-V takes over the card. The PC's own connection then goes through a new `vEthernet (HyperTrunk_<adapter>)` adapter.
+   HyperTrunk manages **one vSwitch at a time**: *Create vSwitch* is disabled while a HyperTrunk vSwitch exists. Remove it first to switch to another adapter. External vSwitches created outside HyperTrunk (for VMs, for example) are not affected.
 2. Click **Add VLAN**, give it a name, pick a **Luminex group**, and optionally enter an **IP address** and **subnet mask**.
    A new `vEthernet (<VLAN name>)` adapter appears in Windows, tagged with the group's VLAN ID.
 3. Repeat for every VLAN you need.

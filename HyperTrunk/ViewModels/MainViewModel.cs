@@ -89,7 +89,11 @@ namespace HyperTrunk.ViewModels
 
             LoadAdaptersCommand = new AsyncRelayCommand(LoadAdaptersAsync, () => !IsBusy);
             LoadVlansCommand = new AsyncRelayCommand(LoadVlansAsync, () => !IsBusy);
-            CreateSwitchCommand = new AsyncRelayCommand(CreateSwitchAsync, () => !IsBusy && SelectedAdapter is not null);
+            // Grisé dès qu'un vSwitch HyperTrunk existe sur une des cartes : un seul à la fois.
+            // HyperVService.CreateSwitchAsync fait aussi la vérification côté Hyper-V, pour
+            // les switches orphelins qui ne sont liés à aucune carte et n'apparaissent pas ici.
+            CreateSwitchCommand = new AsyncRelayCommand(CreateSwitchAsync,
+                () => !IsBusy && SelectedAdapter is not null && !Adapters.Any(a => a.HasHyperTrunkSwitch));
             DeleteSwitchCommand = new AsyncRelayCommand(DeleteSwitchAsync, () => !IsBusy && SelectedAdapter is not null);
             OpenAddVlanCommand = new RelayCommand(OpenAddVlan, () => !IsBusy);
             OpenEditVlanCommand = new RelayCommand(OpenEditVlan, () => !IsBusy && SelectedVlan is not null);

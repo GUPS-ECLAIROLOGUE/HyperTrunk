@@ -83,11 +83,13 @@ namespace HyperTrunk.Services
                 ps => ps.AddCommand("Get-VMSwitch"),
                 ReadTimeout, ct).ConfigureAwait(false);
 
-            var adaptersWithSwitch = switchResults
-                .Select(o => o.Properties["NetAdapterInterfaceDescription"]?.Value?.ToString())
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Select(s => s!)
-                .ToHashSet();
+            // Description de la carte liée -> noms des switches qui l'utilisent.
+            var switchNamesByAdapter = switchResults
+                .Select(o => (
+                    Description: o.Properties["NetAdapterInterfaceDescription"]?.Value?.ToString(),
+                    Name: o.Properties["Name"]?.Value?.ToString() ?? string.Empty))
+                .Where(s => !string.IsNullOrWhiteSpace(s.Description))
+                .ToLookup(s => s.Description!, s => s.Name);
 
             var result = new List<PhysicalAdapterInfo>();
 
@@ -110,7 +112,9 @@ namespace HyperTrunk.Services
                 {
                     Name = name,
                     Description = description,
-                    HasSwitch = adaptersWithSwitch.Contains(description)
+                    HasSwitch = switchNamesByAdapter.Contains(description),
+                    HasHyperTrunkSwitch = switchNamesByAdapter[description]
+                        .Any(n => n.StartsWith(VSwitchNaming.Prefix, StringComparison.OrdinalIgnoreCase))
                 });
             }
 
@@ -128,14 +132,36 @@ namespace HyperTrunk.Services
                 _logger.Log(LogLevel.Debug, "   - " + item);
         }
 
-        public Task CreateSwitchAsync(string adapterName, CancellationToken ct = default)
+        public async Task CreateSwitchAsync(string adapterName, CancellationToken ct = default)
         {
             string switchName = VSwitchNaming.ForAdapter(adapterName);
-            return ExecuteAsync(ps => ps.AddCommand("New-VMSwitch")
+
+            // Un seul vSwitch HyperTrunk à la fois : la liste des VLANs agrège tous les
+            // switches "HyperTrunk_*", et un second switch sur une autre carte mélangerait
+            // les VLANs des deux sans qu'on sache lequel est sur quelle carte. On interroge
+            // Hyper-V directement (plutôt que HasSwitch côté interface) pour aussi bloquer un
+            // switch orphelin non lié à une carte (cf. plantage pilote Killer), et un switch
+            // portant déjà le même nom - New-VMSwitch accepterait de créer un doublon.
+            var switchResults = await ExecuteAsync(
+                ps => ps.AddCommand("Get-VMSwitch"),
+                ReadTimeout, ct).ConfigureAwait(false);
+
+            string? existingSwitch = switchResults
+                .Select(o => o.Properties["Name"]?.Value?.ToString())
+                .FirstOrDefault(n => n is not null && n.StartsWith(VSwitchNaming.Prefix, StringComparison.OrdinalIgnoreCase));
+
+            if (existingSwitch is not null)
+            {
+                throw new HyperVOperationException(
+                    $"A HyperTrunk vSwitch already exists (\"{existingSwitch}\"). " +
+                    "Only one vSwitch can be managed at a time: remove it before creating a new one.");
+            }
+
+            await ExecuteAsync(ps => ps.AddCommand("New-VMSwitch")
                     .AddParameter("Name", switchName)
                     .AddParameter("NetAdapterName", adapterName)
                     .AddParameter("AllowManagementOS", true),
-                SwitchBindTimeout, ct);
+                SwitchBindTimeout, ct).ConfigureAwait(false);
         }
 
         public Task DeleteSwitchAsync(string adapterName, CancellationToken ct = default)
